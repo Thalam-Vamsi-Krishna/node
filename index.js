@@ -1,30 +1,79 @@
+const fs = require("fs");
 const http = require("http");
-const server = http.createServer((req, res) => {
-  let content = `<html><body><h1>Hello, Welcome</h1></body></html>`;
-  let homeContent = `<html><body><h1>Hello, Welcome to Home</h1></body></html>`;
-  let aboutContent = `<html><body><h1>Hello, Welcome to About us Page</h1></body></html>`;
-  let nodeContent = `<html><body><h1>Hello, Welcome to my Node.js project</h1></body></html>`;
+const url = require("url");
+const qs = require("querystring");
 
-  if (req.url === "/") {
-    res.setHeader("Content-Type", "text/html");
-    res.write(content);
-  } else if (req.url === "/home") {
-    res.setHeader("Content-Type", "text/html");
-    res.write(homeContent);
-  } else if (req.url === "/about") {
-    res.setHeader("Content-Type", "text/html");
-    res.write(aboutContent);
-  } else if (req.url === "/node") {
-    res.setHeader("Content-Type", "text/html");
-    res.write(nodeContent);
+function readMessages(callback) {
+  fs.readFile("messages.txt", "utf8", (err, data) => {
+    if (err) {
+      callback([]);
+    } else {
+      const messages = data.trim().split("\n").reverse();
+      callback(messages);
+    }
+  });
+}
+function writeMessage(message, callback) {
+  fs.appendFile("messages.txt", message + "\n", "utf8", (err) => {
+    if (err) {
+      console.error("Error writing message to file:", err);
+    }
+    callback();
+  });
+}
+const server = http.createServer((req, res) => {
+  const reqUrl = url.parse(req.url, true);
+  if (req.method === "POST" && reqUrl.pathname === "/submit") {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+    });
+    req.on("end", () => {
+      const postData = qs.parse(body);
+      const newMessage = postData.message;
+      if (newMessage) {
+        writeMessage(newMessage, () => {
+          readMessages((messages) => {
+            res.writeHead(200, { "Content-Type": "text/html" });
+            res.write("<h1>Messages</h1>");
+            res.write('<form action="/submit" method="post">');
+            res.write(
+              '<input type="text" name="message" placeholder="Enter your message" required>'
+            );
+            res.write('<button type="submit">Submit</button>');
+            res.write("</form>");
+            res.write("<ul>");
+            messages.forEach((msg) => {
+              res.write(`<li>${msg}</li>`);
+            });
+
+            res.write("</ul>");
+            res.end();
+          });
+        });
+      }
+    });
   } else {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.write("404 Not Found");
+    readMessages((messages) => {
+      res.writeHead(200, { "Content-Type": "text/html" });
+      res.write("<h1>Messages</h1>");
+      res.write('<form action="/submit" method="post">');
+      res.write(
+        '<input type="text" name="message" placeholder="Enter your message" required>'
+      );
+      res.write('<button type="submit">Submit</button>');
+      res.write("</form>");
+      res.write("<ul>");
+      messages.forEach((msg) => {
+        res.write(`<li>${msg}</li>`);
+      });
+      res.write("</ul>");
+      res.end();
+    });
   }
-  res.end();
 });
 
-const Port = 4000;
-server.listen(Port, "localhost", () => {
-  console.log(`Server started on ${Port}`);
+const PORT = 4000;
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
 });
